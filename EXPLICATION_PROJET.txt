@@ -1,0 +1,286 @@
+================================================================================
+                    BrainXR — EXPLICATION COMPLETE DU PROJET
+================================================================================
+
+Salut l'equipe ! Voici un recap complet de ce que fait le projet, comment il
+fonctionne, et comment le lancer.
+
+
+================================================================================
+  1. C'EST QUOI CE PROJET ?
+================================================================================
+
+BrainXR est un pipeline qui :
+  1) Telecharge un vrai cerveau IRM (depuis la base de donnees OASIS)
+  2) Le reconstruit en modele 3D
+  3) Fait de l'IA dessus (detection Alzheimer + analyse d'atrophie)
+  4) Affiche tout dans Unity (visualisation 3D + rapport diagnostic)
+
+Technologies utilisees :
+  - Python (backend)  : PyTorch, nilearn, nibabel, scipy, scikit-image
+  - Unity  (frontend) : C#, TextMeshPro
+  - Dataset           : OASIS (Open Access Series of Imaging Studies), 30 sujets
+
+
+================================================================================
+  2. STRUCTURE DES FICHIERS
+================================================================================
+
+3D-main/
+├── backend/                         ← Tout le code Python (IA + 3D)
+│   ├── download_real_mri.py         ← Script principal a lancer
+│   ├── alzheimer_classifier.py      ← Classification Alzheimer (IA)
+│   ├── atrophy_analysis.py          ← Analyse d'atrophie (IA)
+│   ├── brain_report.py              ← Generation du rapport JSON
+│   ├── preprocessing.py             ← Pretraitement des images
+│   ├── segmentation.py              ← Segmentation U-Net
+│   ├── reconstruction.py            ← Reconstruction 3D
+│   ├── export_mesh.py               ← Export OBJ/PLY
+│   ├── main.py                      ← Pipeline classique (sans IA)
+│   ├── requirements.txt             ← Dependances Python
+│   └── data/
+│       ├── output/                  ← Fichiers generes ici
+│       │   ├── brain.obj            ← Mesh 3D du cerveau
+│       │   ├── brain_heatmap.obj    ← Mesh 3D colore (atrophie)
+│       │   └── brain_report.json    ← Rapport diagnostic IA
+│       └── models/
+│           └── alzheimer_classifier.pth  ← Modele IA sauvegarde
+│
+├── unity/                           ← Projet Unity
+│   └── Assets/
+│       ├── Scripts/
+│       │   ├── MeshImporter.cs      ← Charge les fichiers OBJ
+│       │   ├── UIManager.cs         ← Gere les 4 ecrans
+│       │   ├── DiagnosticPanel.cs   ← Affiche le rapport IA
+│       │   ├── BrainRotation.cs     ← Rotation du cerveau
+│       │   ├── SliceViewer.cs       ← Plan de coupe
+│       │   └── TransparencyController.cs
+│       ├── Shaders/
+│       │   └── VertexColor.shader   ← Shader pour les couleurs heatmap
+│       └── StreamingAssets/Models/  ← Les OBJ et JSON copies ici
+│
+└── docs/
+    └── diagnostic_setup.md          ← Guide Unity pas-a-pas
+
+
+================================================================================
+  3. COMMENT LANCER LE PROJET
+================================================================================
+
+ETAPE 1 : Installer les dependances Python (une seule fois)
+-----------------------------------------------------------
+  cd backend
+  pip install -r requirements.txt
+
+ETAPE 2 : Lancer le pipeline
+-----------------------------
+  cd backend
+  python download_real_mri.py
+
+  → Ca prend ~1-2 min au premier lancement (entrainement du modele IA)
+  → Les lancements suivants sont plus rapides (~30 sec)
+  → Chaque lancement = un cerveau DIFFERENT (aleatoire)
+
+ETAPE 3 : Ouvrir Unity
+------------------------
+  → Ouvrir le projet Unity
+  → Les fichiers sont automatiquement copies dans StreamingAssets/Models/
+  → Appuyer sur Play
+
+
+================================================================================
+  4. CE QUE FAIT LE PIPELINE PYTHON (etape par etape)
+================================================================================
+
+Quand on lance "python download_real_mri.py", voici ce qui se passe :
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │  PHASE 1 : TELECHARGEMENT                                  │
+  │  → Se connecte a la base OASIS (30 vrais cerveaux IRM)     │
+  │  → Choisit un sujet au hasard                              │
+  │  → Recupere le volume 3D (.nii.gz) + donnees patient       │
+  │    (age, sexe, score MMSE, score CDR)                      │
+  └─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+  ┌─────────────────────────────────────────────────────────────┐
+  │  PHASE 2 : RECONSTRUCTION 3D                               │
+  │  → Le volume IRM = un cube de 91x109x91 voxels             │
+  │  → On applique un lissage gaussien 3D                      │
+  │  → Marching Cubes : transforme les voxels en surface 3D    │
+  │  → Resultat : ~70 000 vertices, ~140 000 triangles         │
+  │  → Export en brain.obj                                     │
+  └─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+  ┌─────────────────────────────────────────────────────────────┐
+  │  PHASE 3 : CLASSIFICATION ALZHEIMER (IA)                   │
+  │                                                             │
+  │  1. Chargement de l'atlas Harvard-Oxford                    │
+  │     → Decoupe le cortex en 48 regions nommees              │
+  │       (hippocampe, cortex frontal, temporal, etc.)          │
+  │                                                             │
+  │  2. Extraction de features                                  │
+  │     → Pour chaque sujet, on mesure le volume de matiere    │
+  │       grise dans chacune des 48 regions                    │
+  │     → 97 features par sujet (48 volumes + 48 ratios + 1)   │
+  │                                                             │
+  │  3. Entrainement du reseau (si pas deja fait)               │
+  │     → MLP PyTorch : 97 → 128 → 64 → 3 neurones            │
+  │     → Entraine sur les 20 sujets avec CDR connu            │
+  │     → Labels :                                             │
+  │         CDR = 0   → Sain                                   │
+  │         CDR = 0.5 → Declin leger                           │
+  │         CDR >= 1  → Alzheimer                              │
+  │                                                             │
+  │  4. Prediction                                              │
+  │     → Le reseau classe le cerveau choisi                   │
+  │     → Donne : prediction + % confiance + probabilites      │
+  └─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+  ┌─────────────────────────────────────────────────────────────┐
+  │  PHASE 4 : ANALYSE D'ATROPHIE (IA)                         │
+  │                                                             │
+  │  1. Reference saine                                         │
+  │     → On prend les 12 sujets sains (CDR=0)                │
+  │     → On calcule la MOYENNE et l'ECART-TYPE du volume      │
+  │       de chaque region                                     │
+  │                                                             │
+  │  2. Comparaison                                             │
+  │     → Pour le sujet choisi, on compare chaque region       │
+  │       a la moyenne des sains                               │
+  │     → On calcule un Z-SCORE :                              │
+  │         z = (volume_sujet - moyenne_sains) / ecart_type    │
+  │                                                             │
+  │  3. Classification par region                               │
+  │     → z > -1.0   : Normal   (vert)                        │
+  │     → z > -1.5   : Leger    (jaune)                       │
+  │     → z > -2.0   : Modere   (orange)                      │
+  │     → z <= -2.0  : Severe   (rouge)                        │
+  │                                                             │
+  │  4. Heatmap 3D                                              │
+  │     → On reconstruit le cerveau en colorant chaque vertex  │
+  │       selon le z-score de sa region                        │
+  │     → Export en brain_heatmap.obj (avec vertex colors)     │
+  └─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+  ┌─────────────────────────────────────────────────────────────┐
+  │  PHASE 5 : RAPPORT JSON                                    │
+  │  → Combine tout dans brain_report.json :                   │
+  │    - Infos patient (age, sexe, MMSE, CDR reel)             │
+  │    - Diagnostic (prediction + confiance + probabilites)    │
+  │    - Atrophie globale (% de perte de matiere grise)        │
+  │    - Top 10 regions les plus atrophiees                    │
+  │  → Copie les 3 fichiers dans Unity                         │
+  └─────────────────────────────────────────────────────────────┘
+
+
+================================================================================
+  5. CE QUE FAIT LA PARTIE UNITY
+================================================================================
+
+Unity a 4 ecrans :
+
+  Ecran 1 : Import
+    → Charger le modele 3D (brain.obj)
+
+  Ecran 2 : Traitement
+    → Barre de progression pendant le chargement
+
+  Ecran 3 : Visualisation
+    → Affichage 3D du cerveau
+    → Rotation, zoom, plan de coupe, transparence
+    → Bouton "Diagnostic IA" pour aller a l'ecran 4
+
+  Ecran 4 : Diagnostic IA (NOUVEAU)
+    → Lit le fichier brain_report.json
+    → Affiche :
+      - Le diagnostic (Sain / Declin leger / Alzheimer) avec couleur
+      - Le % de confiance
+      - 3 barres de probabilite
+      - L'atrophie globale (% de perte)
+      - La liste des regions atrophiees
+      - Les infos patient (age, MMSE, CDR)
+      - Bouton pour basculer entre le mesh normal et la heatmap coloree
+
+
+================================================================================
+  6. C'EST QUOI LE SCORE CDR ?
+================================================================================
+
+CDR = Clinical Dementia Rating (echelle de reference)
+
+  CDR 0   = Pas de demence (sain)
+  CDR 0.5 = Demence tres legere (debut de declin cognitif)
+  CDR 1   = Demence legere
+  CDR 2   = Demence moderee
+  CDR 3   = Demence severe
+
+C'est ce qu'on utilise comme "verite terrain" pour entrainer notre IA.
+Notre classifieur predit 3 classes : Sain (CDR=0), Declin leger (CDR=0.5),
+Alzheimer (CDR>=1).
+
+
+================================================================================
+  7. C'EST QUOI LE SCORE MMSE ?
+================================================================================
+
+MMSE = Mini-Mental State Examination (test cognitif sur 30 points)
+
+  30-26 = Normal
+  25-20 = Declin leger
+  19-10 = Declin modere
+  < 10  = Declin severe
+
+C'est un indicateur supplementaire qu'on affiche dans le rapport,
+mais on ne l'utilise pas directement pour la classification.
+
+
+================================================================================
+  8. C'EST QUOI L'ATLAS HARVARD-OXFORD ?
+================================================================================
+
+C'est une carte du cerveau qui decoupe le cortex en 48 regions nommees.
+Chaque region correspond a une zone fonctionnelle du cerveau :
+
+  - Frontal Pole          (planification, decisions)
+  - Hippocampus           (memoire — souvent touche en premier dans Alzheimer)
+  - Superior Temporal      (langage, comprehension)
+  - Precentral Gyrus      (mouvements)
+  - etc.
+
+On superpose cet atlas sur l'IRM de chaque patient pour mesurer
+le volume de matiere grise region par region.
+
+
+================================================================================
+  9. RESULTATS OBTENUS
+================================================================================
+
+Avec nos 30 sujets OASIS :
+  - 12 sains (CDR=0)
+  - 6 declin leger (CDR=0.5)
+  - 2 Alzheimer (CDR>=1)
+  - 10 sans CDR (exclus)
+
+Performance du classifieur :
+  → 100% accuracy sur le dataset d'entrainement
+  → Matrice de confusion parfaite
+
+Note : 100% accuracy sur 20 sujets c'est attendu (petit dataset,
+le modele apprend facilement). Sur un plus grand dataset ce serait
+moins eleve mais plus representatif.
+
+
+================================================================================
+  10. POUR RESUMER EN UNE PHRASE
+================================================================================
+
+On prend un vrai cerveau IRM, on le reconstruit en 3D, une IA le classe
+(sain/declin/Alzheimer), une autre IA analyse quelles zones ont perdu
+de la matiere grise (atrophie), et on affiche tout dans Unity avec un
+cerveau colore vert-jaune-orange-rouge selon la severite.
+
+================================================================================

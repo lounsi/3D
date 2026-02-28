@@ -1,0 +1,34 @@
+# === Python ===
+__pycache__/
+*.pyc
+*.pyo
+
+# === Donnees generees (regenerables via download_real_mri.py) ===
+backend/data/
+
+# === Unity ===
+unity/BrainXR/Library/
+unity/BrainXR/Temp/
+unity/BrainXR/Obj/
+unity/BrainXR/Build/
+unity/BrainXR/Builds/
+unity/BrainXR/Logs/
+unity/BrainXR/UserSettings/
+unity/BrainXR/MemoryCaptures/
+unity/BrainXR/Recordings/
+
+# === Unity meta files for directories ===
+# Keep .meta files (needed by Unity)
+
+# === OS ===
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# === IDE ===
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.sln.docstates
