@@ -1,101 +1,101 @@
 {
-  "subject_id": 30,
-  "timestamp": "2026-02-25T12:44:01.829401",
+  "subject_id": 2,
+  "timestamp": "2026-03-03T22:17:43.845821",
   "demographic": {
-    "age": 80.0,
+    "age": 55.0,
     "sex": "F",
     "education": 4.0,
-    "socioeconomic": 2.0,
+    "socioeconomic": 1.0,
     "mmse": 29.0,
     "cdr": 0.0
   },
   "classification": {
     "prediction": "Sain",
-    "confidence": 87.8,
+    "confidence": 92.0,
     "probabilities": {
-      "Sain": 87.8,
-      "Declin leger": 5.5,
-      "Alzheimer": 6.7
+      "Sain": 92.0,
+      "Declin leger": 3.7,
+      "Alzheimer": 4.3
     }
   },
   "atrophy": {
-    "global_atrophy_percent": 10.7,
-    "total_gray_matter_volume": 65531.3,
-    "total_z_score": -0.98,
+    "global_atrophy_percent": 12.4,
+    "total_gray_matter_volume": 64281.2,
+    "total_z_score": -1.13,
     "regions": [
       {
-        "name": "Cuneal Cortex",
-        "z_score": -2.32,
+        "name": "Supramarginal Gyrus, anterior division",
+        "z_score": -2.2,
         "status": "severe",
-        "deviation_percent": -33.4
+        "deviation_percent": -23.1
       },
       {
-        "name": "Supracalcarine Cortex",
-        "z_score": -2.26,
-        "status": "severe",
-        "deviation_percent": -32.9
-      },
-      {
-        "name": "Lingual Gyrus",
-        "z_score": -2.1,
-        "status": "severe",
-        "deviation_percent": -24.3
-      },
-      {
-        "name": "Middle Temporal Gyrus, anterior division",
+        "name": "Middle Temporal Gyrus, temporooccipital part",
         "z_score": -1.99,
         "status": "moderate",
-        "deviation_percent": -24.3
+        "deviation_percent": -19.8
       },
       {
-        "name": "Superior Parietal Lobule",
-        "z_score": -1.9,
+        "name": "Central Opercular Cortex",
+        "z_score": -1.98,
         "status": "moderate",
-        "deviation_percent": -18.4
+        "deviation_percent": -20.1
       },
       {
-        "name": "Inferior Frontal Gyrus, pars opercularis",
-        "z_score": -1.75,
+        "name": "Lateral Occipital Cortex, inferior division",
+        "z_score": -1.96,
         "status": "moderate",
-        "deviation_percent": -22.0
+        "deviation_percent": -20.9
       },
       {
-        "name": "Intracalcarine Cortex",
-        "z_score": -1.72,
+        "name": "Inferior Temporal Gyrus, temporooccipital part",
+        "z_score": -1.94,
         "status": "moderate",
-        "deviation_percent": -24.6
+        "deviation_percent": -24.7
       },
       {
-        "name": "Heschl's Gyrus (includes H1 and H2)",
-        "z_score": -1.66,
+        "name": "Postcentral Gyrus",
+        "z_score": -1.87,
         "status": "moderate",
-        "deviation_percent": -20.0
+        "deviation_percent": -17.4
       },
       {
-        "name": "Occipital Fusiform Gyrus",
-        "z_score": -1.64,
+        "name": "Supramarginal Gyrus, posterior division",
+        "z_score": -1.71,
+        "status": "moderate",
+        "deviation_percent": -16.4
+      },
+      {
+        "name": "Cingulate Gyrus, anterior division",
+        "z_score": -1.63,
+        "status": "moderate",
+        "deviation_percent": -17.7
+      },
+      {
+        "name": "Cingulate Gyrus, posterior division",
+        "z_score": -1.6,
         "status": "moderate",
         "deviation_percent": -17.2
       },
       {
-        "name": "Lateral Occipital Cortex, superior division",
-        "z_score": -1.6,
+        "name": "Precuneous Cortex",
+        "z_score": -1.56,
         "status": "moderate",
-        "deviation_percent": -16.5
+        "deviation_percent": -13.3
       }
     ],
     "most_atrophied": [
-      "Cuneal Cortex",
-      "Supracalcarine Cortex",
-      "Lingual Gyrus",
-      "Middle Temporal Gyrus, anterior division",
-      "Superior Parietal Lobule"
+      "Supramarginal Gyrus, anterior division",
+      "Middle Temporal Gyrus, temporooccipital part",
+      "Central Opercular Cortex",
+      "Lateral Occipital Cortex, inferior division",
+      "Inferior Temporal Gyrus, temporooccipital part"
     ],
     "status_counts": {
-      "normal": 21,
-      "mild": 13,
-      "moderate": 11,
-      "severe": 3
+      "normal": 23,
+      "mild": 14,
+      "moderate": 10,
+      "severe": 1
     },
     "reference_subjects": 12
   },

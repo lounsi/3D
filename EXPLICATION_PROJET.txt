@@ -18,7 +18,7 @@ BrainXR est un pipeline qui :
 
 Technologies utilisees :
   - Python (backend)  : PyTorch, nilearn, nibabel, scipy, scikit-image
-  - Unity  (frontend) : C#, TextMeshPro
+  - Unity  (frontend) : C#, TextMeshPro, shaders custom
   - Dataset           : OASIS (Open Access Series of Imaging Studies), 30 sujets
 
 
@@ -28,7 +28,9 @@ Technologies utilisees :
 
 3D-main/
 ├── backend/                         ← Tout le code Python (IA + 3D)
-│   ├── download_real_mri.py         ← Script principal a lancer
+│   ├── cerveau.py                   ← Genere un cerveau ALEATOIRE
+│   ├── cerveau_malade.py            ← Genere un cerveau MALADE (Alzheimer)
+│   ├── cerveau_rouge.py             ← Genere le cerveau le plus ATROPHIE
 │   ├── alzheimer_classifier.py      ← Classification Alzheimer (IA)
 │   ├── atrophy_analysis.py          ← Analyse d'atrophie (IA)
 │   ├── brain_report.py              ← Generation du rapport JSON
@@ -46,21 +48,26 @@ Technologies utilisees :
 │       └── models/
 │           └── alzheimer_classifier.pth  ← Modele IA sauvegarde
 │
-├── unity/                           ← Projet Unity
+├── unity/BrainXR/                   ← Projet Unity
 │   └── Assets/
 │       ├── Scripts/
-│       │   ├── MeshImporter.cs      ← Charge les fichiers OBJ
-│       │   ├── UIManager.cs         ← Gere les 4 ecrans
-│       │   ├── DiagnosticPanel.cs   ← Affiche le rapport IA
-│       │   ├── BrainRotation.cs     ← Rotation du cerveau
+│       │   ├── MeshImporter.cs      ← Charge les fichiers OBJ + vertex colors
+│       │   ├── DiagnosticManager.cs ← Lit et affiche le rapport IA (JSON)
+│       │   ├── UIManager.cs         ← Gere les ecrans de l'interface
+│       │   ├── MouseRotate.cs       ← Rotation du cerveau a la souris
+│       │   ├── BrainRotation.cs     ← Rotation automatique du cerveau
 │       │   ├── SliceViewer.cs       ← Plan de coupe
-│       │   └── TransparencyController.cs
+│       │   ├── TransparencyController.cs ← Controle de transparence
+│       │   └── XRInteractionController.cs ← Interactions XR
 │       ├── Shaders/
-│       │   └── VertexColor.shader   ← Shader pour les couleurs heatmap
+│       │   ├── VertexColor.shader   ← Shader pour les couleurs heatmap
+│       │   └── VolumeSlice.shader   ← Shader pour le plan de coupe
 │       └── StreamingAssets/Models/  ← Les OBJ et JSON copies ici
 │
-└── docs/
-    └── diagnostic_setup.md          ← Guide Unity pas-a-pas
+├── docs/
+│   └── diagnostic_setup.md          ← Guide Unity pas-a-pas
+│
+└── EXPLICATION_PROJET.txt           ← Ce fichier
 
 
 ================================================================================
@@ -72,32 +79,65 @@ ETAPE 1 : Installer les dependances Python (une seule fois)
   cd backend
   pip install -r requirements.txt
 
-ETAPE 2 : Lancer le pipeline
------------------------------
+ETAPE 2 : Lancer le pipeline (choisir un des deux scripts)
+-----------------------------------------------------------
   cd backend
-  python download_real_mri.py
+
+  python cerveau.py               ← Cerveau aleatoire (chaque lancement = different)
+  python cerveau_malade.py        ← Cerveau malade (CDR le plus eleve)
+  python cerveau_rouge.py         ← Cerveau rouge (pire atrophie mesuree)
 
   → Ca prend ~1-2 min au premier lancement (entrainement du modele IA)
+  → cerveau_rouge.py est plus long car il scanne les 30 sujets
   → Les lancements suivants sont plus rapides (~30 sec)
-  → Chaque lancement = un cerveau DIFFERENT (aleatoire)
+  → Les fichiers sont automatiquement copies dans Unity
 
 ETAPE 3 : Ouvrir Unity
 ------------------------
-  → Ouvrir le projet Unity
+  → Ouvrir le projet Unity (unity/BrainXR/)
   → Les fichiers sont automatiquement copies dans StreamingAssets/Models/
   → Appuyer sur Play
 
 
 ================================================================================
-  4. CE QUE FAIT LE PIPELINE PYTHON (etape par etape)
+  4. LES DEUX SCRIPTS PYTHON
 ================================================================================
 
-Quand on lance "python download_real_mri.py", voici ce qui se passe :
+cerveau.py (cerveau aleatoire)
+-------------------------------
+  → Choisit un sujet AU HASARD parmi les 30 sujets OASIS
+  → Chaque lancement donne un cerveau different
+  → Utile pour tester avec differents profils (sain, malade, etc.)
+
+cerveau_malade.py (cerveau Alzheimer)
+--------------------------------------
+  → Scanne les 30 sujets et selectionne le PLUS MALADE
+  → Criteres : CDR le plus eleve + MMSE le plus bas
+  → Affiche un tableau des 5 pires avant de selectionner
+  → Utile pour faire une demo avec un cas d'Alzheimer bien visible
+
+cerveau_rouge.py (cerveau le plus atrophie)
+--------------------------------------------
+  → Mesure L'ATROPHIE REELLE de chaque sujet (volume de matiere grise)
+  → Compare chaque cerveau a la moyenne des sujets sains
+  → Selectionne celui avec le plus de perte de volume
+  → Le cerveau devrait ressortir majoritairement ROUGE sur la heatmap
+  → Plus long que les autres (~2-3 min) car il analyse les 30 sujets
+  → Difference avec cerveau_malade.py :
+      cerveau_malade  = pire DIAGNOSTIC (CDR clinique)
+      cerveau_rouge   = pire ATROPHIE (volume mesure)
+
+
+================================================================================
+  5. CE QUE FAIT LE PIPELINE PYTHON (etape par etape)
+================================================================================
+
+Quand on lance "python cerveau.py" ou "python cerveau_malade.py" :
 
   ┌─────────────────────────────────────────────────────────────┐
   │  PHASE 1 : TELECHARGEMENT                                  │
   │  → Se connecte a la base OASIS (30 vrais cerveaux IRM)     │
-  │  → Choisit un sujet au hasard                              │
+  │  → Choisit un sujet (aleatoire ou le plus malade)          │
   │  → Recupere le volume 3D (.nii.gz) + donnees patient       │
   │    (age, sexe, score MMSE, score CDR)                      │
   └─────────────────────────────────────────────────────────────┘
@@ -178,64 +218,198 @@ Quand on lance "python download_real_mri.py", voici ce qui se passe :
 
 
 ================================================================================
-  5. CE QUE FAIT LA PARTIE UNITY
+  6. CE QUE FAIT LA PARTIE UNITY
 ================================================================================
 
-Unity a 4 ecrans :
+Scripts Unity :
 
-  Ecran 1 : Import
-    → Charger le modele 3D (brain.obj)
+  MeshImporter.cs
+    → Charge brain.obj ou brain_heatmap.obj au demarrage
+    → Parse le format OBJ avec support des vertex colors
+    → Applique le bon material (normal ou heatmap)
+    → Support des gros meshes (>65K vertices)
 
-  Ecran 2 : Traitement
-    → Barre de progression pendant le chargement
+  DiagnosticManager.cs
+    → Lit brain_report.json au demarrage
+    → Affiche un rapport formate et colore :
+      - Infos patient (age, sexe, education, MMSE, CDR)
+      - Diagnostic IA (Sain/Declin/Alzheimer) avec couleur
+      - Confiance + 3 probabilites
+      - Atrophie globale + volume matiere grise
+      - Repartition des regions (normal/leger/modere/severe)
+      - Top 10 regions les plus touchees avec z-scores
 
-  Ecran 3 : Visualisation
-    → Affichage 3D du cerveau
-    → Rotation, zoom, plan de coupe, transparence
-    → Bouton "Diagnostic IA" pour aller a l'ecran 4
+  MouseRotate.cs
+    → Permet de faire tourner le cerveau avec la souris
+    → Clic gauche + glisser = rotation libre
 
-  Ecran 4 : Diagnostic IA (NOUVEAU)
-    → Lit le fichier brain_report.json
-    → Affiche :
-      - Le diagnostic (Sain / Declin leger / Alzheimer) avec couleur
-      - Le % de confiance
-      - 3 barres de probabilite
-      - L'atrophie globale (% de perte)
-      - La liste des regions atrophiees
-      - Les infos patient (age, MMSE, CDR)
-      - Bouton pour basculer entre le mesh normal et la heatmap coloree
+  UIManager.cs
+    → Gere la navigation entre les ecrans
+    → Boutons, barre de progression, logs
+
+  BrainRotation.cs
+    → Rotation automatique du cerveau (toggle on/off)
+
+  SliceViewer.cs
+    → Plan de coupe pour voir l'interieur du cerveau
+
+  TransparencyController.cs
+    → Reglage de la transparence du mesh
+
+Shaders Unity :
+
+  VertexColor.shader
+    → Affiche les vertex colors de la heatmap
+    → Utilise par le material "HeatmapMaterial"
+
+  VolumeSlice.shader
+    → Shader avec plan de coupe + transparence
+    → Face avant = surface du cerveau
+    → Face arriere = couleur de coupe (interieur)
 
 
 ================================================================================
-  6. C'EST QUOI LE SCORE CDR ?
+  7. TOUTES LES DONNEES DU RAPPORT EXPLIQUEES
 ================================================================================
 
-CDR = Clinical Dementia Rating (echelle de reference)
+Voici chaque donnee que vous pouvez voir dans le rapport diagnostic,
+avec une explication claire :
 
-  CDR 0   = Pas de demence (sain)
-  CDR 0.5 = Demence tres legere (debut de declin cognitif)
-  CDR 1   = Demence legere
-  CDR 2   = Demence moderee
-  CDR 3   = Demence severe
+--- INFORMATIONS PATIENT ---
 
-C'est ce qu'on utilise comme "verite terrain" pour entrainer notre IA.
-Notre classifieur predit 3 classes : Sain (CDR=0), Declin leger (CDR=0.5),
-Alzheimer (CDR>=1).
+  Age
+    → Age du patient au moment de l'IRM (en annees).
+    → Alzheimer touche principalement les personnes agees (>65 ans).
 
+  Sexe (M/F)
+    → Sexe biologique du patient.
+    → Les femmes sont statistiquement plus touchees par Alzheimer.
 
-================================================================================
-  7. C'EST QUOI LE SCORE MMSE ?
-================================================================================
+  Education (en annees)
+    → Nombre d'annees d'etudes du patient.
+    → Un niveau d'education eleve est un facteur protecteur.
+    → Echelle OASIS : 1=moins de bac, 2=bac, 3=post-bac, 4=master, 5=doctorat
 
-MMSE = Mini-Mental State Examination (test cognitif sur 30 points)
+  Statut socio-economique
+    → Niveau socio-economique du patient.
+    → Echelle OASIS : 1=eleve, 2=moyen-haut, 3=moyen, 4=moyen-bas, 5=bas
 
-  30-26 = Normal
-  25-20 = Declin leger
-  19-10 = Declin modere
-  < 10  = Declin severe
+  MMSE (Mini-Mental State Examination)
+    → Test cognitif sur 30 points. C'est un questionnaire rapide
+      (orientation, memoire, calcul, langage, copie de dessin).
+    → 30-26 = Normal
+    → 25-20 = Declin leger
+    → 19-10 = Declin modere
+    → < 10  = Declin severe
+    → Un score bas indique des troubles cognitifs.
 
-C'est un indicateur supplementaire qu'on affiche dans le rapport,
-mais on ne l'utilise pas directement pour la classification.
+  CDR (Clinical Dementia Rating)
+    → Echelle clinique de reference pour evaluer la demence.
+    → CDR 0   = Pas de demence (sain)
+    → CDR 0.5 = Demence tres legere (debut de declin cognitif)
+    → CDR 1   = Demence legere
+    → CDR 2   = Demence moderee
+    → CDR 3   = Demence severe
+    → C'est la "verite terrain" utilisee pour entrainer notre IA.
+    → Notre classifieur predit 3 classes :
+        CDR = 0   → "Sain"
+        CDR = 0.5 → "Declin leger"
+        CDR >= 1  → "Alzheimer"
+
+--- DIAGNOSTIC IA ---
+
+  Prediction (Sain / Declin leger / Alzheimer)
+    → Le resultat principal de notre IA.
+    → C'est la classe la plus probable selon le reseau de neurones.
+    → Colore en vert (sain), orange (declin), ou rouge (Alzheimer).
+
+  Confiance (%)
+    → A quel point l'IA est sure de sa prediction.
+    → 90%+ = tres confiant
+    → 60-90% = assez confiant
+    → <60% = incertain (le cerveau est "entre deux" categories)
+
+  Probabilites (Sain / Declin leger / Alzheimer)
+    → La repartition des probabilites entre les 3 classes.
+    → Les 3 probabilites font toujours 100% au total.
+    → Exemple : Sain 87.8%, Declin 5.5%, Alzheimer 6.7%
+    → Permet de voir a quel point le diagnostic est "tranche" ou "nuance".
+
+--- ATROPHIE CEREBRALE ---
+
+  Atrophie globale (%)
+    → Pourcentage de perte de matiere grise par rapport a la moyenne
+      des cerveaux sains.
+    → 0-10% = normal (legere variation naturelle)
+    → 10-20% = perte legere
+    → 20-30% = perte moderee
+    → >30% = perte severe (typique Alzheimer avance)
+
+  Volume matiere grise (mm3)
+    → Volume total de matiere grise mesure dans le cerveau.
+    → La matiere grise = les neurones (la ou se fait le "traitement").
+    → Un volume bas par rapport aux sujets de reference = atrophie.
+
+  Z-score global
+    → Mesure statistique : de combien le cerveau s'ecarte de la moyenne.
+    → z = (volume_patient - moyenne_sains) / ecart_type_sains
+    → z > -1.0  = dans la norme (normal)
+    → z entre -1.0 et -1.5 = legere atrophie
+    → z entre -1.5 et -2.0 = atrophie moderee
+    → z < -2.0 = atrophie severe
+    → Plus le z-score est negatif, plus l'atrophie est grave.
+
+  Sujets de reference
+    → Nombre de cerveaux sains utilises pour calculer la moyenne.
+    → Dans notre cas : 12 sujets sains (CDR=0) dans OASIS.
+
+--- DONNEES PAR REGION ---
+
+  Nom de la region
+    → Nom de la zone du cerveau selon l'atlas Harvard-Oxford.
+    → 48 regions au total, on affiche les 10 plus touchees.
+    → Exemples :
+      - Hippocampus = memoire (souvent 1er touche par Alzheimer)
+      - Frontal Pole = planification, decisions
+      - Temporal Gyrus = langage, comprehension
+      - Insular Cortex = emotions, conscience corporelle
+
+  Z-score (par region)
+    → Meme principe que le z-score global, mais pour UNE region.
+    → Compare le volume de cette region chez le patient
+      vs la moyenne des sujets sains.
+    → Exemple : z-score = -2.32 signifie que cette region est
+      2.32 ecarts-types en dessous de la moyenne (= atrophie severe).
+
+  Deviation (%)
+    → De combien cette region est plus petite que la moyenne.
+    → Exemple : -33.4% signifie que la region fait 33.4% de moins
+      que la moyenne des cerveaux sains.
+
+  Statut (normal / leger / modere / severe)
+    → Classification simplifiee basee sur le z-score :
+    → Normal  (vert)   : z > -1.0  → dans la norme
+    → Leger   (jaune)  : z > -1.5  → perte legere
+    → Modere  (orange) : z > -2.0  → perte significative
+    → Severe  (rouge)  : z <= -2.0 → perte importante
+
+  Repartition des statuts
+    → Compte combien de regions sont dans chaque categorie.
+    → Exemple : 21 normales, 13 legeres, 11 moderees, 3 severes
+    → Un cerveau sain aura surtout des "normales".
+    → Un cerveau Alzheimer aura beaucoup de "moderees" et "severes".
+
+--- HEATMAP (COULEURS DU CERVEAU 3D) ---
+
+  La heatmap colore le cerveau 3D en fonction de l'atrophie :
+
+    VERT   = region normale (pas d'atrophie)
+    JAUNE  = atrophie legere (debut de perte)
+    ORANGE = atrophie moderee (perte significative)
+    ROUGE  = atrophie severe (perte importante de matiere grise)
+
+  Chaque vertex (point 3D) du mesh est colore selon le z-score
+  de la region a laquelle il appartient.
 
 
 ================================================================================
@@ -249,6 +423,10 @@ Chaque region correspond a une zone fonctionnelle du cerveau :
   - Hippocampus           (memoire — souvent touche en premier dans Alzheimer)
   - Superior Temporal      (langage, comprehension)
   - Precentral Gyrus      (mouvements)
+  - Insular Cortex        (emotions, conscience de soi)
+  - Cingulate Gyrus       (attention, controle emotionnel)
+  - Occipital Cortex      (vision)
+  - Parietal Lobule       (orientation spatiale)
   - etc.
 
 On superpose cet atlas sur l'IRM de chaque patient pour mesurer
@@ -281,6 +459,7 @@ moins eleve mais plus representatif.
 On prend un vrai cerveau IRM, on le reconstruit en 3D, une IA le classe
 (sain/declin/Alzheimer), une autre IA analyse quelles zones ont perdu
 de la matiere grise (atrophie), et on affiche tout dans Unity avec un
-cerveau colore vert-jaune-orange-rouge selon la severite.
+cerveau colore vert-jaune-orange-rouge selon la severite + un rapport
+diagnostic complet.
 
 ================================================================================

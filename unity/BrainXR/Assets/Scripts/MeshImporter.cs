@@ -6,116 +6,118 @@ using System.Globalization;
 public class MeshImporter : MonoBehaviour
 {
     [Header("Configuration")]
-    public string meshFileName = "brain.obj";
+    public string meshFileName = "brain_heatmap.obj"; 
     public Material brainMaterial;
-    public float importScale = 1f;
+    public Material heatmapMaterial; 
+    public float importScale = 1.0f;
 
     [Header("References")]
     public MeshFilter meshFilter;
     public MeshRenderer meshRenderer;
     public MeshCollider meshCollider;
 
-    // 🔥 Events utilisés par UIManager
-    public System.Action<Mesh> OnMeshLoaded;
-    public System.Action<string> OnMeshError;
+    // Evenements pour notifier les autres scripts (UIManager, etc.)
+    public event System.Action<Mesh> OnMeshLoaded;
+    public event System.Action<string> OnMeshError;
 
-    private Mesh loadedMesh;
-
-    void Start()
-    {
-        LoadMesh();
+    void Start() 
+    { 
+        LoadMesh(); 
     }
 
     public void LoadMesh()
     {
         string path = Path.Combine(Application.streamingAssetsPath, "Models", meshFileName);
+        LoadMeshFromPath(path);
+    }
 
-        if (!File.Exists(path))
+    public void LoadMeshFromPath(string filePath)
+    {
+        if (!File.Exists(filePath))
         {
-            string error = "File not found: " + path;
-            Debug.LogError(error);
-            OnMeshError?.Invoke(error);
+            string err = "Fichier introuvable : " + filePath;
+            Debug.LogError("[MeshImporter] " + err);
+            OnMeshError?.Invoke(err);
             return;
         }
 
         try
         {
-            loadedMesh = ParseOBJ(path);
-            ApplyMesh(loadedMesh);
-
-            Debug.Log("Mesh loaded: " + loadedMesh.vertexCount + " vertices");
+            bool hasVertexColors;
+            Mesh loadedMesh = ParseOBJ(filePath, out hasVertexColors);
+            ApplyMesh(loadedMesh, hasVertexColors);
+            Debug.Log("[MeshImporter] Succes : " + loadedMesh.vertexCount + " sommets charges. Couleurs : " + hasVertexColors);
             OnMeshLoaded?.Invoke(loadedMesh);
         }
         catch (System.Exception e)
         {
-            string error = "Error loading mesh: " + e.Message;
-            Debug.LogError(error);
-            OnMeshError?.Invoke(error);
+            Debug.LogError("[MeshImporter] Erreur : " + e.Message);
+            OnMeshError?.Invoke(e.Message);
         }
     }
 
-    private Mesh ParseOBJ(string filePath)
+    private Mesh ParseOBJ(string filePath, out bool hasVertexColors)
     {
         List<Vector3> vertices = new List<Vector3>();
+        List<Color> colors = new List<Color>();
         List<int> triangles = new List<int>();
+        hasVertexColors = false;
 
         string[] lines = File.ReadAllLines(filePath);
-
         foreach (string line in lines)
         {
-            if (line.StartsWith("v "))
-            {
-                string[] p = line.Split(' ');
-                float x = float.Parse(p[1], CultureInfo.InvariantCulture);
-                float y = float.Parse(p[2], CultureInfo.InvariantCulture);
-                float z = float.Parse(p[3], CultureInfo.InvariantCulture);
-                vertices.Add(new Vector3(x, y, z) * importScale);
-            }
+            string trimmed = line.Trim();
+            if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith("#")) continue;
 
-            if (line.StartsWith("f "))
+            string[] parts = trimmed.Split(new char[] { ' ', '\t' }, System.StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length < 1) continue;
+
+            if (parts[0] == "v" && parts.Length >= 4)
             {
-                string[] p = line.Split(' ');
-                triangles.Add(int.Parse(p[1].Split('/')[0]) - 1);
-                triangles.Add(int.Parse(p[2].Split('/')[0]) - 1);
-                triangles.Add(int.Parse(p[3].Split('/')[0]) - 1);
+                float x = float.Parse(parts[1], CultureInfo.InvariantCulture);
+                float y = float.Parse(parts[2], CultureInfo.InvariantCulture);
+                float z = float.Parse(parts[3], CultureInfo.InvariantCulture);
+                vertices.Add(new Vector3(x, y, z) * importScale);
+
+                if (parts.Length >= 7)
+                {
+                    float r = float.Parse(parts[4], CultureInfo.InvariantCulture);
+                    float g = float.Parse(parts[5], CultureInfo.InvariantCulture);
+                    float b = float.Parse(parts[6], CultureInfo.InvariantCulture);
+                    colors.Add(new Color(r, g, b, 1.0f));
+                    hasVertexColors = true;
+                }
+                else
+                {
+                    colors.Add(Color.white);
+                }
+            }
+            else if (parts[0] == "f")
+            {
+                for (int i = 1; i < parts.Length - 2; i++)
+                {
+                    triangles.Add(int.Parse(parts[1].Split('/')[0]) - 1);
+                    triangles.Add(int.Parse(parts[i+1].Split('/')[0]) - 1);
+                    triangles.Add(int.Parse(parts[i+2].Split('/')[0]) - 1);
+                }
             }
         }
 
         Mesh mesh = new Mesh();
-
-        if (vertices.Count > 65535)
-            mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
-
+        if (vertices.Count > 65000) mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
         mesh.SetVertices(vertices);
         mesh.SetTriangles(triangles, 0);
+        if (hasVertexColors) mesh.SetColors(colors);
         mesh.RecalculateNormals();
         mesh.RecalculateBounds();
-
         return mesh;
     }
 
-    private void ApplyMesh(Mesh mesh)
+    private void ApplyMesh(Mesh mesh, bool useVertexColors)
     {
-        if (meshFilter == null)
-            meshFilter = GetComponent<MeshFilter>();
-
-        if (meshRenderer == null)
-            meshRenderer = GetComponent<MeshRenderer>();
-
-        if (meshCollider == null)
-            meshCollider = GetComponent<MeshCollider>();
-
-        meshFilter.mesh = mesh;
-
-        if (brainMaterial != null)
-            meshRenderer.material = brainMaterial;
-
-        if (meshCollider != null)
-            meshCollider.sharedMesh = mesh;
-    }
-
-    public Mesh GetLoadedMesh()
-    {
-        return loadedMesh;
+        if (meshFilter != null) meshFilter.mesh = mesh;
+        Material targetMat = (useVertexColors && heatmapMaterial != null) ? heatmapMaterial : brainMaterial;
+        if (meshRenderer != null) meshRenderer.material = targetMat;
+        if (meshCollider != null) meshCollider.sharedMesh = mesh;
     }
 }
